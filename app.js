@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let heatLayerOverview = null;
     let heatLayerFull = null;
     let typeChart = null;
+    let trendChart = null;
     let overviewMap = null;
     let fullMap = null;
 
@@ -54,17 +55,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const statResolved = document.getElementById('stat-resolved');
     const statResolvedTrend = document.getElementById('stat-resolved-trend');
     const statPending = document.getElementById('stat-pending');
+    const timeRangeSelect = document.getElementById('timeRange');
 
-    // Function to get filtered incidents
+    let heatMapTimeRange = 'Last 7 Days';
+    if (timeRangeSelect) {
+        timeRangeSelect.addEventListener('change', (e) => {
+            heatMapTimeRange = e.target.value;
+            updateHeatmaps();
+        });
+    }
+
     function getDisplayIncidents() {
         if (!currentSearchQuery) return incidents;
         const q = currentSearchQuery.toLowerCase();
-        return incidents.filter(inc => 
-            inc.city.toLowerCase().includes(q) || 
-            inc.type.toLowerCase().includes(q) || 
-            inc.desc.toLowerCase().includes(q) ||
-            inc.id.toLowerCase().includes(q)
-        );
+        return incidents.filter(inc => {
+            const cityMatch = (inc.city || '').toLowerCase().includes(q);
+            const typeMatch = (inc.type || '').toLowerCase().includes(q);
+            const descMatch = (inc.desc || '').toLowerCase().includes(q);
+            const idMatch = (inc.id || '').toLowerCase().includes(q);
+            return cityMatch || typeMatch || descMatch || idMatch;
+        });
     }
 
     // --- SEARCH LOGIC ---
@@ -74,6 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            triggerSearch();
+        });
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -220,9 +233,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateHeatmaps() {
         const disp = getDisplayIncidents();
-        const heatData = disp.map(inc => [inc.lat, inc.lng, 1.0]);
-        if (heatLayerOverview) heatLayerOverview.setLatLngs(heatData);
-        if (heatLayerFull) heatLayerFull.setLatLngs(heatData);
+        
+        // Overview heatmap (all data)
+        const heatDataOverview = disp.map(inc => [inc.lat, inc.lng, 1.0]);
+        if (heatLayerOverview) heatLayerOverview.setLatLngs(heatDataOverview);
+        
+        // Full heatmap (filtered by timeRange)
+        let today = new Date();
+        if (disp.length > 0) {
+            const maxDateStr = disp.map(inc => inc.date).filter(d => d).sort().reverse()[0];
+            if (maxDateStr) {
+                const parts = maxDateStr.split('-');
+                if (parts.length === 3) {
+                    today = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+        }
+        today.setHours(0,0,0,0);
+        
+        const filteredForFull = disp.filter(inc => {
+            if (!inc.date) return false;
+            const parts = inc.date.split('-');
+            if (parts.length !== 3) return true;
+            const incDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            incDate.setHours(0,0,0,0);
+            
+            const diffTime = today.getTime() - incDate.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (heatMapTimeRange === 'Last 7 Days') {
+                return diffDays >= 0 && diffDays <= 6;
+            } else if (heatMapTimeRange === 'Last 30 Days') {
+                return diffDays >= 0 && diffDays <= 29;
+            }
+            return true;
+        });
+
+        const heatDataFull = filteredForFull.map(inc => [inc.lat, inc.lng, 1.0]);
+        if (heatLayerFull) heatLayerFull.setLatLngs(heatDataFull);
     }
 
     // --- CHARTS INITIALIZATION ---
@@ -245,10 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const gradient = ctxTrend.createLinearGradient(0, 0, 0, 300);
             gradient.addColorStop(0, 'rgba(244, 63, 94, 0.4)'); gradient.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
             
-            new Chart(ctxTrend, {
+            trendChart = new Chart(ctxTrend, {
                 type: 'line',
                 data: {
                     labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+
                     datasets: [{
                         data: [0, 0, 0, 0, 0, 0, 0], // Empty trend
                         borderColor: '#F43F5E', backgroundColor: gradient, borderWidth: 2, fill: true, tension: 0.4
@@ -271,6 +320,49 @@ document.addEventListener('DOMContentLoaded', () => {
             typeChart.data.labels = Object.keys(counts);
             typeChart.data.datasets[0].data = Object.values(counts);
             typeChart.update();
+        }
+
+        // Calculate trend (Last 7 Days)
+        if (trendChart) {
+            let today = new Date();
+            if (disp.length > 0) {
+                const maxDateStr = disp.map(inc => inc.date).filter(d => d).sort().reverse()[0];
+                if (maxDateStr) {
+                    const parts = maxDateStr.split('-');
+                    if (parts.length === 3) {
+                        today = new Date(parts[0], parts[1] - 1, parts[2]);
+                    }
+                }
+            }
+            today.setHours(0,0,0,0);
+            
+            const labels = [];
+            const data = [0, 0, 0, 0, 0, 0, 0];
+            
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+            }
+            
+            disp.forEach(inc => {
+                if (!inc.date) return;
+                const parts = inc.date.split('-');
+                if (parts.length !== 3) return;
+                const incDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                incDate.setHours(0,0,0,0);
+                
+                const diffTime = today.getTime() - incDate.getTime();
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 0 && diffDays <= 6) {
+                    data[6 - diffDays]++;
+                }
+            });
+            
+            trendChart.data.labels = labels;
+            trendChart.data.datasets[0].data = data;
+            trendChart.update();
         }
     }
 
