@@ -8,6 +8,7 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
 // API: Get all incidents
 app.get('/api/incidents', (req, res) => {
