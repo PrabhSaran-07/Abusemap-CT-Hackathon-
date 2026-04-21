@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AbuseMap - Punjab Incident Dashboard</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-shield-cat"></i>
+                <h2>AbuseMap</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-target="view-overview"><i class="fa-solid fa-chart-pie"></i> Overview</a>
+                <a href="#" class="nav-item" data-target="view-heatmap-full"><i class="fa-solid fa-map-location-dot"></i> Heatmap</a>
+                <a href="#" class="nav-item" data-target="view-logs"><i class="fa-solid fa-list-ul"></i> Incident Log</a>
+                <a href="#" class="nav-item" data-target="view-report"><i class="fa-solid fa-file-signature"></i> Report Incident</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <img src="https://ui-avatars.com/api/?name=Admin&background=random" alt="User Avatar" class="avatar">
+                    <span>Admin User</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <div class="search-bar">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search by city (e.g. Ludhiana), type...">
+                    <button id="searchBtn" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding-left: 8px;"><i class="fa-solid fa-arrow-right"></i></button>
+                </div>
+                <div class="header-actions">
+                    <button class="action-btn"><i class="fa-solid fa-bell"></i><span class="badge" id="notif-badge">3</span></button>
+                    <button class="btn-primary" id="btn-report"><i class="fa-solid fa-plus"></i> Report Incident</button>
+                </div>
+            </header>
+
+            <!-- VIEW: OVERVIEW -->
+            <section id="view-overview" class="view-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon alert"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Total Incidents (Punjab)</span>
+                            <h3 class="stat-value" id="stat-total">0</h3>
+                            <span class="stat-trend positive"><i class="fa-solid fa-arrow-up"></i> Live</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon warning"><i class="fa-solid fa-paw"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">High-Risk District</span>
+                            <h3 class="stat-value" id="stat-high-risk">None</h3>
+                            <span class="stat-trend negative" id="stat-high-risk-trend"><i class="fa-solid fa-arrow-up"></i> Most Cases</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon success"><i class="fa-solid fa-hands-holding-circle"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Rescued/Resolved</span>
+                            <h3 class="stat-value" id="stat-resolved">0</h3>
+                            <span class="stat-trend positive" id="stat-resolved-trend"><i class="fa-solid fa-arrow-up"></i> 0%</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon info"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Pending Cases</span>
+                            <h3 class="stat-value" id="stat-pending">0</h3>
+                            <span class="stat-trend neutral" id="stat-pending-trend"><i class="fa-solid fa-minus"></i> Awaiting Action</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <!-- Map Section -->
+                    <div class="map-container glass-panel">
+                        <div class="panel-header">
+                            <h3>Punjab Heatmap Overview</h3>
+                        </div>
+                        <div id="map-overview"></div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="charts-sidebar">
+                        <div class="chart-container glass-panel">
+                            <div class="panel-header">
+                                <h3>Incidents by Type</h3>
+                            </div>
+                            <div class="chart-wrapper">
+                                <canvas id="typeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-container glass-panel">
+                            <div class="panel-header">
+                                <h3>Trend Analysis (Last 7 Days)</h3>
+                            </div>
+                            <div class="chart-wrapper">
+                                <canvas id="trendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: FULL HEATMAP -->
+            <section id="view-heatmap-full" class="view-section hidden">
+                <div class="glass-panel full-height">
+                    <div class="panel-header">
+                        <h3>Detailed Heatmap - Punjab Region</h3>
+                        <div class="panel-actions">
+                            <select id="timeRange" class="filter-select">
+                                <option>Last 7 Days</option>
+                                <option>Last 30 Days</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="map-full" style="flex: 1; min-height: 600px;"></div>
+                </div>
+            </section>
+
+            <!-- VIEW: INCIDENT LOGS -->
+            <section id="view-logs" class="view-section hidden">
+                <div class="glass-panel">
+                    <div class="panel-header">
+                        <h3>Recent Incidents Log</h3>
+                        <button class="btn-primary btn-small" id="btn-export"><i class="fa-solid fa-download"></i> Export CSV</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>City/District</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-tbody">
+                                <!-- Data injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: REPORT INCIDENT -->
+            <section id="view-report" class="view-section hidden">
+                <div class="glass-panel" style="max-width: 600px; margin: 0 auto; width: 100%;">
+                    <div class="panel-header">
+                        <h3>Report New Incident</h3>
+                    </div>
+                    <form id="report-form" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+                        <div class="form-group">
+                            <label>Incident Type</label>
+                            <select id="inc-type" required>
+                                <option value="Stray Dog Abuse">Stray Dog Abuse</option>
+                                <option value="Cattle Neglect">Cattle Neglect</option>
+                                <option value="Illegal Transport">Illegal Transport</option>
+                                <option value="Wildlife Poaching">Wildlife Poaching</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>City / Location (Punjab)</label>
+                            <select id="inc-city" required>
+                                <option value="Ludhiana">Ludhiana</option>
+                                <option value="Amritsar">Amritsar</option>
+                                <option value="Jalandhar">Jalandhar</option>
+                                <option value="Patiala">Patiala</option>
+                                <option value="Bathinda">Bathinda</option>
+                                <option value="Mohali">Mohali</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="inc-desc" rows="4" placeholder="Provide details..." required></textarea>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 10px; padding-top: 20px; border-top: var(--glass-border);">
+                            <button type="button" id="final-submit-btn" class="btn-primary" style="width: 100%; justify-content: center;">Submit Report</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modals Removed in favor of dedicated view -->
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
