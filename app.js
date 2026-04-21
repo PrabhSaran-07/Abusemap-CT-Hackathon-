@@ -120,9 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(() => { 
                             if(fullMap) {
                                 fullMap.invalidateSize();
-                                if(heatLayerFull) heatLayerFull.redraw();
+                                updateHeatmaps(); // repopulate with correct filtered data
                             }
-                        }, 100);
+                        }, 150);
                     }
                     if(targetId === 'view-overview') {
                         setTimeout(() => { 
