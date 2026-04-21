@@ -253,43 +253,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const heatDataOverview = disp.map(inc => [inc.lat, inc.lng, 1.0]);
         if (heatLayerOverview) heatLayerOverview.setLatLngs(heatDataOverview);
         
-        // Full heatmap (filtered by timeRange)
+        // --- Full heatmap (filtered by timeRange) ---
+        const countBadge = document.getElementById('heatmap-count');
+
+        // If "All Time", skip date filtering entirely
+        if (heatMapTimeRange === 'All Time') {
+            const allData = disp.map(inc => [inc.lat, inc.lng, 1.0]);
+            if (heatLayerFull) { heatLayerFull.setLatLngs(allData); heatLayerFull.redraw(); }
+            if (countBadge) countBadge.textContent = `${allData.length} incident${allData.length !== 1 ? 's' : ''} (All Time)`;
+            return;
+        }
+
+        // Find reference "today" = newest date in the dataset
         let today = new Date();
         if (disp.length > 0) {
             const maxDateStr = disp.map(inc => inc.date).filter(d => d).sort().reverse()[0];
             if (maxDateStr) {
                 const parts = maxDateStr.split('-');
-                if (parts.length === 3) {
-                    today = new Date(parts[0], parts[1] - 1, parts[2]);
-                }
+                if (parts.length === 3) today = new Date(parts[0], parts[1] - 1, parts[2]);
             }
         }
         today.setHours(0,0,0,0);
-        
+
+        const dayLimit = heatMapTimeRange === 'Last 7 Days' ? 6 : 29;
+
         const filteredForFull = disp.filter(inc => {
             if (!inc.date) return false;
             const parts = inc.date.split('-');
-            if (parts.length !== 3) return true;
+            if (parts.length !== 3) return false;
             const incDate = new Date(parts[0], parts[1] - 1, parts[2]);
             incDate.setHours(0,0,0,0);
-            
-            const diffTime = today.getTime() - incDate.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-            
-            if (heatMapTimeRange === 'Last 7 Days') {
-                return diffDays >= 0 && diffDays <= 6;
-            } else if (heatMapTimeRange === 'Last 30 Days') {
-                return diffDays >= 0 && diffDays <= 29;
-            }
-            return true;
+            const diffDays = Math.round((today.getTime() - incDate.getTime()) / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays <= dayLimit;
         });
 
-        const heatDataFull = filteredForFull.map(inc => [inc.lat, inc.lng, 1.0]);
-        
-        // If no data for the selected range, fall back to showing ALL incidents
-        const finalData = heatDataFull.length > 0 ? heatDataFull : disp.map(inc => [inc.lat, inc.lng, 0.6]);
-        if (heatLayerFull) heatLayerFull.setLatLngs(finalData);
+        // Scale intensity so even sparse data is visible
+        const intensity = filteredForFull.length <= 3 ? 1.0 : 0.8;
+        const heatDataFull = filteredForFull.map(inc => [inc.lat, inc.lng, intensity]);
+
+        // Fallback: show all at dim intensity if the window has nothing
+        const finalData = heatDataFull.length > 0 ? heatDataFull : disp.map(inc => [inc.lat, inc.lng, 0.4]);
+        const shownCount = heatDataFull.length > 0 ? heatDataFull.length : disp.length;
+        const isFallback = heatDataFull.length === 0 && disp.length > 0;
+
+        if (heatLayerFull) {
+            heatLayerFull.setLatLngs(finalData);
+            heatLayerFull.redraw(); // force canvas repaint
+        }
+
+        if (countBadge) {
+            countBadge.textContent = isFallback
+                ? `No data in range — showing all ${shownCount}`
+                : `${shownCount} incident${shownCount !== 1 ? 's' : ''} shown`;
+        }
     }
+
 
     // --- CHARTS INITIALIZATION ---
     try {
