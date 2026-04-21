@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let trendChart = null;
     let overviewMap = null;
     let fullMap = null;
+    let fullMapInitialized = false;
 
     // DOM Elements (declared at top to completely prevent TDZ issues)
     const searchInput = document.getElementById('searchInput');
@@ -117,12 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     v.classList.add('active');
                     // Invalidate map size if switching to map view so it renders correctly
                     if(targetId === 'view-heatmap-full') {
-                        setTimeout(() => { 
+                        // Lazy-init the full map now that the container is visible
+                        initFullMap();
+                        setTimeout(() => {
                             if(fullMap) {
                                 fullMap.invalidateSize();
-                                updateHeatmaps(); // repopulate with correct filtered data
+                                updateHeatmaps();
                             }
-                        }, 150);
+                        }, 200);
                     }
                     if(targetId === 'view-overview') {
                         setTimeout(() => { 
@@ -216,19 +219,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MAP INITIALIZATION ---
+    // Overview map initializes immediately (it's visible on load)
     try {
         overviewMap = L.map('map-overview', { zoomControl: false }).setView([31.1471, 75.3412], 7);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(overviewMap);
         heatLayerOverview = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 10 }).addTo(overviewMap);
-
-        fullMap = L.map('map-full').setView([31.1471, 75.3412], 8);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(fullMap);
-        heatLayerFull = L.heatLayer([], { 
-            radius: 30, blur: 20, maxZoom: 10,
-            gradient: { 0.4: '#3B82F6', 0.6: '#F59E0B', 0.8: '#F43F5E', 1.0: '#BE123C' }
-        }).addTo(fullMap);
     } catch(err) {
-        console.error("Map initialization failed: ", err);
+        console.error("Overview map initialization failed: ", err);
+    }
+
+    // Full map: lazy init — only created when Heatmap tab is first opened
+    function initFullMap() {
+        if (fullMapInitialized) return;
+        try {
+            fullMap = L.map('map-full').setView([31.1471, 75.3412], 7);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(fullMap);
+            heatLayerFull = L.heatLayer([], {
+                radius: 50,
+                blur: 35,
+                minOpacity: 0.5,
+                gradient: { 0.2: '#3B82F6', 0.5: '#F59E0B', 0.8: '#F43F5E', 1.0: '#BE123C' }
+            }).addTo(fullMap);
+            fullMapInitialized = true;
+        } catch(err) {
+            console.error("Full map initialization failed: ", err);
+        }
     }
 
     function updateHeatmaps() {
@@ -270,7 +285,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const heatDataFull = filteredForFull.map(inc => [inc.lat, inc.lng, 1.0]);
-        if (heatLayerFull) heatLayerFull.setLatLngs(heatDataFull);
+        
+        // If no data for the selected range, fall back to showing ALL incidents
+        const finalData = heatDataFull.length > 0 ? heatDataFull : disp.map(inc => [inc.lat, inc.lng, 0.6]);
+        if (heatLayerFull) heatLayerFull.setLatLngs(finalData);
     }
 
     // --- CHARTS INITIALIZATION ---
